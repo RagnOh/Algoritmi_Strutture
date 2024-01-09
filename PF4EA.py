@@ -149,7 +149,7 @@ class Griglia:
                 ostacoli_presenti += 1
             
             # creo gli ostacoli agglomerati vicini
-            max_ostacoli_vicini= randint(0,self.agglomerato)
+            max_ostacoli_vicini = randint(0,self.agglomerato)
             num_ostacoli_vicini=0
             while num_ostacoli_vicini < max_ostacoli_vicini and ostacoli_presenti < max_ostacoli:
                 z,t = choice(self.getVicini(x,y))
@@ -157,13 +157,13 @@ class Griglia:
                     if self.griglia[z,t] != 0:
                         self.griglia[z,t] = 0
                         current_obstacle += 1
-                        num_ostacoli_vicini +=1
+                    num_ostacoli_vicini +=1
 
         end = time.time()
         self.tempo_creazione_griglia = end - start
         print(f'Tempo creazione griglia: {self.tempo_creazione_griglia} s')
     
-    def mostraGriglia(self, path='img/griglia con percorsi.png'):
+    def mostraGriglia(self, path='img/griglia.png'):
         print('Salvo la griglia...\n')
         IMG_SCLALE = 4
         DPI = 200
@@ -194,8 +194,9 @@ class Griglia:
         plt.savefig(path, dpi=DPI, bbox_inches='tight')
         print("Griglia salvata in img/")
 
-    def popolaListeAdiacenza(self): # O(N*M)
-        print('Creo la lista di adiacenza...')
+
+    def makeListeAdiacenza(self): # O(N*M)
+        print('Creo lista adiacenza...')
         start = time.time()
         for i in tqdm(range(self.dimensioni[0])):
             for j in tqdm(range(self.dimensioni[1]),leave=False):
@@ -203,8 +204,8 @@ class Griglia:
                     cella = Cella(x=i,y=j)
                     l = []
                     for c in cella.getCelleAdiacenti():                       
-                        # se la cella  è legale e non è un ostacolo, la aggiungo dalla lista
-                        if self.isCellaLegale(c) and self.griglia[c.getX(), c.getY()] == 1:
+                       
+                        if self.isCellaFree(c) and self.griglia[c.getX(), c.getY()] == 1:
                             l.append(Mossa(cella, c))
                     l.append(Mossa(cella,cella))
                     self.lista_adiacenza.aggiungiLista(cella, l)
@@ -215,7 +216,7 @@ class Griglia:
 
 
         
-    # restituisce le 8 celle più vicine
+    # restituisco le 8 celle più vicine
     def getVicini(self,x,y):        
         vicini = []
         for i in range(x - 1, x + 2):
@@ -226,12 +227,10 @@ class Griglia:
         return vicini
 
 
-    def isCellaLegale(self, c: Cella) -> bool:
+    def isCellaFree(self, c: Cella) -> bool:
         assert isinstance(c, Cella)
         return (c.getX() >= 0 and c.getX() < self.dimensioni[0]) and (c.getY() >= 0 and c.getY() < self.dimensioni[1])
 
-
-    
 
     def getRandomCella(self):
         x,y = randint(self.dimensioni[0]), randint(self.dimensioni[1])
@@ -254,3 +253,166 @@ class Griglia:
         for mossa in percorso.getSequenzaMosse():
             cella = mossa.getTo()
             self.griglia[cella.getX(), cella.getY()] = id_percorso
+
+class Percorso:
+    def __init__(self, init: Cella, goal: Cella) -> None:
+        assert isinstance(init, Cella) and isinstance(goal, Cella)
+        self.sequenza_mosse : List[Mossa]= []
+        self.lunghezza: int = 0
+        self.costo : float = 0
+        self.init = init
+        self.goal = goal
+        self.n_mosse_wait = 0
+    
+    #t rappresenta intervallo di tempo
+    def checkCollisioneMossa(self, mossa, percorsi: list("Percorso"), t) -> bool:
+        assert isinstance(mossa, Mossa)
+        for percorso in percorsi:
+            assert len(percorso.sequenza_mosse) > 0
+            if t < percorso.lunghezza:               
+                if mossa.checkCollisione(percorso.sequenza_mosse[t]): return True
+            else:
+                if mossa.checkCollisione(percorso.sequenza_mosse[-1]): return True
+        return False
+    
+    def checkCollisione(self, percorsi, t) -> bool | int:
+        for t in range(len(self.sequenza_mosse)):
+            if self.checkCollisioneMossa(self.sequenza_mosse[t], percorsi, t): return True, t
+        return False, -1
+    
+    def contaMosseWait(self):
+        for m in self.sequenza_mosse:
+            if m.getFrom() == m.getTo(): self.n_mosse_wait += 1
+     
+    def getSequenzaMosse(self) -> List[Mossa]:
+        return self.sequenza_mosse
+    
+    def getMossa(self, t) -> Mossa:
+        return self.sequenza_mosse[t]
+    
+    def getInit(self) -> Cella:
+        return self.init
+    
+    def getGoal(self) -> Cella:
+        return self.goal
+    
+    def append(self, mossa: Mossa):
+        self.sequenza_mosse.append(mossa)
+        self.lunghezza += 1
+        self.costo += mossa.getCosto()
+
+    def prepend(self, mossa: Mossa):
+        self.sequenza_mosse.insert(0, mossa)
+        self.lunghezza += 1
+        self.costo += mossa.getCosto()
+
+    def merge(self, percorso: "Percorso"):
+        """fa il merge mettendo il percorso passato dopo"""
+        assert len(self.sequenza_mosse) == 0 or self.sequenza_mosse[-1].getTo() == percorso.init
+        self.sequenza_mosse += percorso.sequenza_mosse
+        self.lunghezza += percorso.getLunghezza()
+        self.costo += percorso.costo
+
+    def confronta(self, percorso: "Percorso") -> str:
+        diverse = []
+        for i in range(np.min([self.lunghezza, percorso.lunghezza])):
+            if self.sequenza_mosse[i] != percorso.sequenza_mosse[i]:
+                diverse.append((self.sequenza_mosse[i], percorso.sequenza_mosse[i], i))
+        str_ = f'\nmosse diverse: numero\trilassato\tnon\n'
+        for mossa, mossa2, i in diverse:
+            str_ += f'nr_{i} -> {mossa}\t{mossa2}\n'
+        return str_
+
+
+    def getLunghezza(self) -> int:
+        return self.lunghezza
+    
+    def getCosto(self) -> float:
+        return self.costo
+    
+    def __str__(self) -> str:
+        str_ = f'\ninit = {self.init}\ngoal = {self.goal}\nlunghezza = {self.lunghezza}\ncosto = {self.costo}\npercorso = '
+        for mossa in self.sequenza_mosse:
+            str_ += str(mossa) + "|"
+        return str_
+    
+
+class PF4EA:
+    def __init__(self, dim_griglia = [100,100],celle_attraversabili=0.9,agglomerato=3, max=60):
+       
+        assert len(dim_griglia) == 2 and dim_griglia[0] > 0 and dim_griglia[1] > 0    
+        assert celle_attraversabili > 0 and celle_attraversabili < 1.0
+        assert agglomerato > 0 and agglomerato < 8
+        assert max >= 0
+                
+        self.griglia = Griglia(dim_griglia,celle_attraversabili,agglomerato)
+        self.griglia.istanziaGriglia()
+        self.percorsi = [] 
+        
+        self.max = max
+        
+        print("Creata istanza PF4EA")
+
+    def setInitGoal(self):
+        self.init = self.getCellaInit()
+        self.goal = self.getCellaGoal()
+
+
+    def setPercorsi(self, percorsi):
+        self.percorsi = percorsi
+
+    def stampaGriglia(self):
+        self.griglia.mostraGriglia()
+
+    def stampaPercorso(self, percorso,val,path):
+        self.griglia.aggiungiPercorso(percorso, val)
+        self.griglia.mostraGriglia(path)
+
+    def aggiungiPercorsiAllaGriglia(self):
+        assert len(self.percorsi) >= 0 
+        actual = 2
+        for percorso in self.percorsi:
+            self.griglia.aggiungiPercorso(percorso, actual)
+            actual += 1
+
+    def getCellaInit(self) -> Cella:
+        cella = self.griglia.getRandomCella()
+        while self.collisioneCelle(cella, 0):
+            cella = self.griglia.getRandomCella()
+        return cella
+    
+    def getCellaGoal(self, init=None) -> Cella:
+        if init is None: init = self.init
+        
+        cella = self.griglia.getRandomCella()
+        while self.collisioneCelle(cella, -1) and cella != init:
+            cella = self.griglia.getRandomCella()
+        return cella
+
+    def collisioneCelle(self, cella: Cella, tipologia: int) -> bool:
+        """ restituisce true se c'è una collisione in base alla tipologia.
+            tipologia può essere 0 = celle iniziali oppure -1 = celle goal"""
+        assert tipologia == 0 or tipologia == -1
+        assert isinstance(cella, Cella)
+        for p in self.percorsi:
+            if p.getSequenzaMosse()[tipologia].getFrom() == cella: return True
+        return False
+    
+    def getListaAdiacenza(self) -> ListaAdiacenza:
+        return self.griglia.getListaAdiacenza()
+    
+    def getPercorsi(self) -> [Percorso]:
+        return self.percorsi
+
+    def getInit(self) -> Cella:
+        return self.init
+    
+    def getGoal(self) -> Cella:
+        return self.goal
+    
+    def getMax(self) -> int:
+        return self.max
+
+    def saveToFile(self, place: str):
+        joblib.dump(self, place)
+    
