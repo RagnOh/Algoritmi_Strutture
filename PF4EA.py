@@ -89,7 +89,7 @@ class Mossa:
 
 class ListaAdiacenza:
     def __init__(self):
-        self.dict = {}
+        self.dict = {} #dizionario che associa ad ogni cella la lista delle celle adiacenti
         self.length : int = 0
 
     def aggiungiLista(self, c: Cella, adiacenti: List[Cella]):
@@ -97,7 +97,7 @@ class ListaAdiacenza:
         self.dict[c.__str__()] = adiacenti
         self.length += 1
 
-    def getMosse(self, c: Cella) -> Cella:
+    def getMosse(self, c: Cella) -> Cella: #ritorna la lista delle celle adiacenti a v
         assert isinstance(c, Cella)
         return self.dict.get(c.__str__()) # se non trova la chiave restituisce None
 
@@ -270,9 +270,9 @@ class Percorso:
         for percorso in percorsi:
             assert len(percorso.sequenza_mosse) > 0
             if t < percorso.lunghezza:               
-                if mossa.checkCollisione(percorso.sequenza_mosse[t]): return True
+                if mossa.checkCollision(percorso.sequenza_mosse[t]): return True
             else:
-                if mossa.checkCollisione(percorso.sequenza_mosse[-1]): return True
+                if mossa.checkCollision(percorso.sequenza_mosse[-1]): return True #se t>= lunghezzaPercorso l'agente è fermo nella sua ultima mossa [-1]
         return False
     
     def checkCollisione(self, percorsi, t) -> bool | int:
